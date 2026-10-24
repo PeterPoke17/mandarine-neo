@@ -1,0 +1,44 @@
+name: mi-android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPILERCHECK: content
+      CCACHE_SLOPPINESS: time_macros
+      OS: android
+      TARGET: universal
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Aplicar parche
+        run: patch -p1 -l --forward --batch < mandarine-neo-turbo-y-fast-mul.patch
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ${{ env.CCACHE_DIR }}
+          key: ${{ runner.os }}-android-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-android-
+      - name: Instalar paquetes
+        run: sudo apt-get update && sudo apt-get -y install zip unzip python3 ccache apksigner
+      - name: Compilar
+        run: JAVA_HOME=$JAVA_HOME_17_X64 ./.ci/android.sh
+      - name: Empaquetar
+        run: ../../../.ci/pack.sh
+        working-directory: src/android/app
+        env:
+          UNPACKED: 1
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: src/android/app/artifacts/
